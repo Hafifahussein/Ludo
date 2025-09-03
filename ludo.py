@@ -37,6 +37,11 @@ class LudoGame:
         self.wins_input = "0"
         self.losses_input = "0"
         
+        # Player selection variables
+        self.num_players = 4
+        self.player_colors = []
+        self.selecting_players = True
+        
         # Load assets
         self._load_assets()
         
@@ -68,7 +73,37 @@ class LudoGame:
             pygame.image.load('asset/blue.png')
         ]
         
-        # Sound-related code has been removed
+        # Create colored dice
+        self.COLORED_DICE = {}
+        for color_idx in range(4):
+            colored_dice = []
+            for dice_idx in range(6):
+                # Create a copy of the dice image
+                dice_img = self.DICE[dice_idx].copy()
+                # Get the color token image
+                color_img = self.color[color_idx]
+                # Create a colored overlay (simplified approach)
+                color_overlay = pygame.Surface(dice_img.get_size(), pygame.SRCALPHA)
+                color_overlay.fill((255, 255, 255, 128))  # Semi-transparent white
+                dice_img.blit(color_overlay, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+                # Blend with the actual color
+                color_mask = pygame.Surface(dice_img.get_size(), pygame.SRCALPHA)
+                r, g, b = self._get_color_values(color_idx)
+                color_mask.fill((r, g, b, 100))  # Semi-transparent color
+                dice_img.blit(color_mask, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+                colored_dice.append(dice_img)
+            self.COLORED_DICE[color_idx] = colored_dice
+
+    def _get_color_values(self, color_idx):
+        # Return RGB values for each color
+        if color_idx == 0:  # Red
+            return (255, 0, 0)
+        elif color_idx == 1:  # Green
+            return (0, 255, 0)
+        elif color_idx == 2:  # Yellow
+            return (255, 255, 0)
+        else:  # Blue
+            return (0, 0, 255)
 
     def _define_constants(self):
         self.HOME = [
@@ -115,7 +150,11 @@ class LudoGame:
             for j in self.position[i]:
                 self.screen.blit(self.color[i], j)
 
-        self.screen.blit(self.DICE[self.number-1], (605, 270))
+        # Show colored dice based on current player
+        if self.currentPlayer in self.player_colors:
+            self.screen.blit(self.COLORED_DICE[self.currentPlayer][self.number-1], (605, 270))
+        else:
+            self.screen.blit(self.DICE[self.number-1], (605, 270))
 
         self._render_ui()
 
@@ -123,14 +162,16 @@ class LudoGame:
         time.sleep(0.5)
 
     def _render_ui(self):
-        self.screen.blit(self.color[self.currentPlayer], (620, 28))
+        if self.currentPlayer in self.player_colors:
+            self.screen.blit(self.color[self.currentPlayer], (620, 28))
         self.screen.blit(self.currentPlayerText, (600, 10))
         self.screen.blit(self.line, (592, 59))
 
         for i in range(len(self.winnerRank)):
-            rank = self.FONT.render(f'{i+1}.', True, (0, 0, 0))
-            self.screen.blit(rank, (600, 85 + (40*i)))
-            self.screen.blit(self.color[self.winnerRank[i]], (620, 75 + (40*i)))
+            if self.winnerRank[i] in self.player_colors:
+                rank = self.FONT.render(f'{i+1}.', True, (0, 0, 0))
+                self.screen.blit(rank, (600, 85 + (40*i)))
+                self.screen.blit(self.color[self.winnerRank[i]], (620, 75 + (40*i)))
             
         # Draw player manager button
         pygame.draw.rect(self.screen, (200, 200, 200), self.player_manager_button)
@@ -145,7 +186,12 @@ class LudoGame:
             for j in self.position[i]:
                 self.screen.blit(self.color[i], j)
 
-        self.screen.blit(self.DICE[self.number-1], (605, 270))
+        # Show colored dice based on current player
+        if self.currentPlayer in self.player_colors:
+            self.screen.blit(self.COLORED_DICE[self.currentPlayer][self.number-1], (605, 270))
+        else:
+            self.screen.blit(self.DICE[self.number-1], (605, 270))
+            
         self._render_ui()
         
         # Draw player manager if active
@@ -238,7 +284,11 @@ class LudoGame:
         elif tuple(self.position[x][y]) not in self.HOME[self.currentPlayer]:
             self.diceRolled = False
             if not self.number == 6:
-                self.currentPlayer = (self.currentPlayer + 1) % 4
+                # Skip players not in the game
+                next_player = (self.currentPlayer + 1) % 4
+                while next_player not in self.player_colors:
+                    next_player = (next_player + 1) % 4
+                self.currentPlayer = next_player
 
             # Way to WINNER position
             if (self.position[x][y][1] == 284 and self.position[x][y][0] <= 202 and x == 0) \
@@ -304,7 +354,11 @@ class LudoGame:
                     for j in range(len(self.position[i])):
                         if self.position[i][j] == self.position[x][y] and i != x:
                             self.position[i][j] = list(self.HOME[i][j])
-                            self.currentPlayer = (self.currentPlayer + 3) % 4
+                            # Skip players not in the game
+                            prev_player = (self.currentPlayer + 3) % 4
+                            while prev_player not in self.player_colors:
+                                prev_player = (prev_player + 3) % 4
+                            self.currentPlayer = prev_player
 
     def check_winner(self):
         if self.currentPlayer not in self.winnerRank:
@@ -317,7 +371,11 @@ class LudoGame:
             player_name = f"Player {self.currentPlayer + 1}"
             self.db.update_score(player_name, won=True)
         else:
-            self.currentPlayer = (self.currentPlayer + 1) % 4
+            # Skip players not in the game
+            next_player = (self.currentPlayer + 1) % 4
+            while next_player not in self.player_colors:
+                next_player = (next_player + 1) % 4
+            self.currentPlayer = next_player
 
     def handle_player_manager_click(self, pos):
         if not self.show_player_manager:
@@ -411,7 +469,40 @@ class LudoGame:
             if event.unicode.isalnum() or event.unicode == ' ':
                 self.player_name_input += event.unicode
 
+    def select_num_players(self):
+        selecting = True
+        while selecting:
+            self.screen.fill((255, 255, 255))
+            title = self.FONT.render("Select Number of Players", True, (0, 0, 0))
+            self.screen.blit(title, (300, 100))
+            
+            buttons = []
+            for i in range(2, 5):  # 2, 3, or 4 players
+                btn_rect = pygame.Rect(350, 150 + (i-2)*80, 100, 60)
+                buttons.append(btn_rect)
+                pygame.draw.rect(self.screen, (200, 200, 200), btn_rect)
+                text = self.FONT.render(f"{i} Players", True, (0, 0, 0))
+                self.screen.blit(text, (360, 170 + (i-2)*80))
+                
+            pygame.display.update()
+            
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    return False
+                if event.type == pygame.MOUSEBUTTONUP:
+                    pos = pygame.mouse.get_pos()
+                    for i, btn_rect in enumerate(buttons):
+                        if btn_rect.collidepoint(pos):
+                            self.num_players = i + 2
+                            self.player_colors = list(range(self.num_players))
+                            return True
+        return True
+
     def run(self):
+        # Player selection screen
+        if not self.select_num_players():
+            return
+            
         running = True
         while running:
             self.screen.fill((255, 255, 255))
@@ -439,7 +530,11 @@ class LudoGame:
                         if (flag and self.number == 6) or not flag:
                             self.diceRolled = True
                         else:
-                            self.currentPlayer = (self.currentPlayer + 1) % 4
+                            # Skip players not in the game
+                            next_player = (self.currentPlayer + 1) % 4
+                            while next_player not in self.player_colors:
+                                next_player = (next_player + 1) % 4
+                            self.currentPlayer = next_player
                     # Moving Player
                     elif self.diceRolled:
                         for j in range(len(self.position[self.currentPlayer])):
